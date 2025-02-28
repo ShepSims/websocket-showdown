@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Showdown: Flask vs FastAPI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            gap: 20px;
+            background: #f0f2f5;
+        }
+
+        .server-container {
+            flex: 1;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .current-server {
+            position: absolute;
+            top: -12px;
+            right: 20px;
+            background: #ffd700;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .server-name {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .flask { color: #3574d2; }
+        .fastapi { color: #05998b; }
+
+        .metrics-panel {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+
+        .metric {
+            display: inline-block;
+            margin-right: 15px;
+        }
+
+        .latency-good { color: #2ecc71; }
+        .latency-medium { color: #f1c40f; }
+        .latency-bad { color: #e74c3c; }
+
+        .connection-status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        .connected {
+            background: #e3fcef;
+            color: #00a651;
+        }
+
+        .disconnected {
+            background: #ffe5e5;
+            color: #ff0000;
+        }
+
+        .chat-area {
+            height: 300px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding: 10px;
+        }
+
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+
+        .message .username {
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .message .time {
+            color: #666;
+            font-size: 0.8em;
+        }
+
+        .users-list {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .name-area {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="server-container">
+        <div class="current-server" id="flask-current" style="display: none;">YOU ARE HERE</div>
+        <div class="server-header">
+            <div class="server-name flask">Flask</div>
+            <div class="connection-status" id="flask-status">Connecting...</div>
+        </div>
+        <div class="metrics-panel" id="flask-metrics">
+            <div class="metric">
+                <strong>Latency:</strong> <span id="flask-latency">0</span>ms
+            </div>
+            <div class="metric">
+                <strong>Messages/sec:</strong> <span id="flask-mps">0</span>
+            </div>
+            <div class="metric">
+                <strong>Memory:</strong> <span id="flask-memory">0</span>MB
+            </div>
+            <div class="metric">
+                <strong>CPU:</strong> <span id="flask-cpu">0</span>%
+            </div>
+        </div>
+        <div class="name-area">
+            <input type="text" id="flask-username" placeholder="Enter your name">
+            <button onclick="setUsername('flask')">Set Name</button>
+        </div>
+        <div class="chat-area" id="flask-messages"></div>
+        <div class="input-area">
+            <input type="text" id="flask-input" placeholder="Type a message...">
+            <button onclick="sendMessage('flask')">Send</button>
+        </div>
+        <div class="users-list">
+            <h3>Active Users</h3>
+            <div id="flask-users"></div>
+        </div>
+    </div>
+
+    <div class="server-container">
+        <div class="current-server" id="fastapi-current" style="display: none;">YOU ARE HERE</div>
+        <div class="server-header">
+            <div class="server-name fastapi">FastAPI</div>
+            <div class="connection-status" id="fastapi-status">Connecting...</div>
+        </div>
+        <div class="metrics-panel" id="fastapi-metrics">
+            <div class="metric">
+                <strong>Latency:</strong> <span id="fastapi-latency">0</span>ms
+            </div>
+            <div class="metric">
+                <strong>Messages/sec:</strong> <span id="fastapi-mps">0</span>
+            </div>
+            <div class="metric">
+                <strong>Memory:</strong> <span id="fastapi-memory">0</span>MB
+            </div>
+            <div class="metric">
+                <strong>CPU:</strong> <span id="fastapi-cpu">0</span>%
+            </div>
+        </div>
+        <div class="name-area">
+            <input type="text" id="fastapi-username" placeholder="Enter your name">
+            <button onclick="setUsername('fastapi')">Set Name</button>
+        </div>
+        <div class="chat-area" id="fastapi-messages"></div>
+        <div class="input-area">
+            <input type="text" id="fastapi-input" placeholder="Type a message...">
+            <button onclick="sendMessage('fastapi')">Send</button>
+        </div>
+        <div class="users-list">
+            <h3>Active Users</h3>
+            <div id="fastapi-users"></div>
+        </div>
+    </div>
+
+    <script>
+        const currentPort = window.location.port;
+        const flaskSocket = io('http://localhost:5000');
+        const fastApiSocket = io('http://localhost:8000');
+
+        // Show which server we're connected through
+        document.getElementById(`${currentPort === '5000' ? 'flask' : 'fastapi'}-current`).style.display = 'block';
+
+        const sockets = {
+            'flask': flaskSocket,
+            'fastapi': fastApiSocket
+        };
+
+        // Ping tracking
+        let lastPingTime = {
+            'flask': 0,
+            'fastapi': 0
+        };
+
+        function updateStatus(server, connected) {
+            const status = document.getElementById(`${server}-status`);
+            status.textContent = connected ? 'Connected' : 'Disconnected';
+            status.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function updateMetrics(server, data) {
+            if (data.latency) {
+                const latencyElement = document.getElementById(`${server}-latency`);
+                latencyElement.textContent = data.latency.toFixed(2);
+                latencyElement.className = data.latency < 50 ? 'latency-good' : 
+                                         data.latency < 150 ? 'latency-medium' : 
+                                         'latency-bad';
+            }
+            if (data.messages_per_second) {
+                document.getElementById(`${server}-mps`).textContent = data.messages_per_second.toFixed(2);
+            }
+            if (data.memory_usage) {
+                document.getElementById(`${server}-memory`).textContent = data.memory_usage.toFixed(2);
+            }
+            if (data.cpu_usage) {
+                document.getElementById(`${server}-cpu`).textContent = data.cpu_usage.toFixed(1);
+            }
+        }
+
+        function addMessage(server, message) {
+            const container = document.getElementById(`${server}-messages`);
+            const time = new Date(message.timestamp * 1000).toLocaleTimeString();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.innerHTML = `
+                <span class="username">${message.username}</span>
+                <span class="text">${message.text}</span>
+                <span class="time">${time}</span>
+            `;
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateUsers(server, users) {
+            const container = document.getElementById(`${server}-users`);
+            container.innerHTML = users.map(user => `<div>${user}</div>`).join('');
+        }
+
+        function sendMessage(server) {
+            const input = document.getElementById(`${server}-input`);
+            const text = input.value.trim();
+            
+            if (text) {
+                sockets[server].emit('chat_message', { text });
+                input.value = '';
+            }
+        }
+
+        function setUsername(server) {
+            const input = document.getElementById(`${server}-username`);
+            const username = input.value.trim();
+            
+            if (username) {
+                sockets[server].emit('set_username', { username });
+                input.value = '';
+            }
+        }
+
+        // Setup ping interval for both servers
+        setInterval(() => {
+            Object.entries(sockets).forEach(([server, socket]) => {
+                lastPingTime[server] = Date.now();
+                socket.emit('ping', { timestamp: lastPingTime[server] });
+            });
+        }, 1000);
+
+        // Setup event listeners for both servers
+        ['flask', 'fastapi'].forEach(server => {
+            const socket = sockets[server];
+            
+            socket.on('connect', () => updateStatus(server, true));
+            socket.on('disconnect', () => updateStatus(server, false));
+            
+            socket.on('chat_message', (message) => {
+                if (message.server.toLowerCase() === server) {
+                    addMessage(server, message);
+                }
+            });
+            
+            socket.on('users_update', (data) => {
+                if (data.server.toLowerCase() === server) {
+                    updateUsers(server, data.users);
+                }
+            });
+
+            socket.on('metrics_update', (data) => {
+                if (data.server.toLowerCase() === server) {
+                    updateMetrics(server, data);
+                }
+            });
+
+            socket.on('pong', (data) => {
+                const latency = Date.now() - data.timestamp;
+                updateMetrics(server, { latency });
+            });
+
+            // Handle Enter key in input fields
+            document.getElementById(`${server}-input`).addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage(server);
+                }
+            });
+
+            document.getElementById(`${server}-username`).addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    setUsername(server);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

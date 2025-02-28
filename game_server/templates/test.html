@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connected to server!');
+        });
+    </script>
+</head>
+<body>
+    <h1>WebSocket Test Page</h1>
+    <p>Check the server console to see the connection message!</p>
+</body>
+</html> 
